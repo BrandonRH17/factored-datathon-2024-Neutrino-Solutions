@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 spark = SparkSession.builder.appName("GDELT Data Loader").getOrCreate()
 
 # Especificar la ruta de la tabla Delta en la ubicación predeterminada de S3
-delta_table_path = "s3://databricks-workspace-stack-e63e7-bucket/unity-catalog/2600119076103476/bronze/gdelt/events"
+delta_table_path = ""
 
 # Verificar si la tabla ya existe en formato Delta
 table_exists = DeltaTable.isDeltaTable(spark, delta_table_path)
