@@ -99,10 +99,15 @@ schema = StructType([
 ])
 
 # Leer el archivo Parquet desde S3
-extraction_date = dbutils.widgets.get("extraction-date")
-s3_path = dbutils.widgets.get("aws_raw_path")
+extraction_date = dbutils.jobs.taskValues.get("00_get_events_control_date", "next_date_to_process")
+extraction_date_for_s3 = extraction_date.replace("-", "")
+
+s3_base_path = dbutils.widgets.get("aws_raw_path")
+s3_path = f"{s3_base_path}/{extraction_date_for_s3}.parquet"
+
 spark_df = spark.read.parquet(s3_path)
 spark_df = spark_df.withColumn("extraction_date", lit(extraction_date))
+spark_df = spark_df.withColumn("last_modified", lit(extraction_date))
 
 # Verificar si la tabla ya existe en formato Delta y realizar el upsert
 if table_exists:
