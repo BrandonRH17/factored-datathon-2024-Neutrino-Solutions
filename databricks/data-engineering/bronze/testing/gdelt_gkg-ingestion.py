@@ -43,35 +43,18 @@ import zipfile
 import io
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
-from delta.tables import DeltaTable
 from datetime import datetime, timedelta
 from pyspark.sql.functions import col
 
 # INIT SPARK SESSION
 spark = SparkSession.builder.appName("GKG Data Loader").getOrCreate()
 
-
-#spark.catalog.refreshTable("bronze.gdelt_gkg")  # CLEAR SPARK CACHE
-#dbutils.fs.rm(delta_table_path, recurse=True)   
-
-
 # S3 DELTA TABLE PATH
-delta_table_path = "s3://databricks-workspace-stack-e63e7-bucket/unity-catalog/2600119076103476/bronze/gkg/events/"
+delta_table_path = "s3://databricks-workspace-stack-e63e7-bucket/unity-catalog/2600119076103476/bronze/gdelt/gkg/"
 
-# DROP TABLE FROM CATALOG
-spark.sql("DROP TABLE IF EXISTS factored_datathon_ws.bronze.gkg_events")
-
-# CREATE TABLE 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS factored_datathon_ws.bronze.gkg_events
-    USING DELTA
-    LOCATION '{delta_table_path}'
-""")
-print("TABLE HAS BEEN CREATED")
- 
-# DEFINE PERIOD OF DATES
-start_date = datetime.strptime("2020-01-01", "%Y-%m-%d")
-end_date = datetime.strptime("2024-08-18", "%Y-%m-%d")
+# DEFINE THE RANGE OF DATES YOU WANT TO LOAD
+start_date = datetime.strptime("2020-01-02", "%Y-%m-%d")
+end_date = datetime.strptime("2024-08-18", "%Y-%m-%d")  # Example end date
 
 # DEFINE COLUMN NAMES
 column_names = [
@@ -96,7 +79,7 @@ schema = StructType([
     StructField("extraction_date", DateType(), True)  
 ])
 
-# INIT PROCCESS
+# PROCESS THE RANGE OF DATES
 current_date = start_date
 while current_date <= end_date:
     date_str = current_date.strftime('%Y%m%d')
@@ -129,10 +112,10 @@ while current_date <= end_date:
         # ADD EXTRACTION DATE COLUMN
         df['extraction_date'] = current_date.date()
 
-        #C CONVERT TO SPARK DATAFRAME
+        # CONVERT TO SPARK DATAFRAME
         spark_df = spark.createDataFrame(df, schema=schema)
 
-        # INSERT DATA
+        # INSERT DATA INTO THE DELTA TABLE
         spark_df.write.format("delta").mode("append").save(delta_table_path)
         print(f"NEW RECORDS INSERTED FOR DATE {date_str}.")
 
@@ -144,9 +127,6 @@ while current_date <= end_date:
     # INCREMENT DATE
     current_date += timedelta(days=1)
 
+# STOP SPARK SESSION
 spark.stop()
-
-
-# COMMAND ----------
-
 
