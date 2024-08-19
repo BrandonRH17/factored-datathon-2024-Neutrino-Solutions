@@ -126,3 +126,7 @@ else:
 # Finalizar la sesión de Spark
 spark.stop()
 
+
+# COMMAND ----------
+
+

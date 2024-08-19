@@ -9,7 +9,7 @@ from delta.tables import DeltaTable
 from datetime import datetime, timedelta
 
 # Inicializar la sesión de Spark
-spark = SparkSession.builder.appName("GDELT Data Loader").getOrCreate()
+spark = SparkSession.builder.appName("GKG Data Loader").getOrCreate()
 
 # Especificar la ruta de la tabla Delta en la ubicación predeterminada de S3
 delta_table_path = ""
@@ -177,5 +177,9 @@ except Exception as e:
 
 # Finalizar la sesión de Spark
 spark.stop()
+
+
+
+# COMMAND ----------
 
 
