@@ -53,7 +53,7 @@ spark = SparkSession.builder.appName("GKG Data Loader").getOrCreate()
 delta_table_path = "s3://databricks-workspace-stack-e63e7-bucket/unity-catalog/2600119076103476/bronze/gdelt/gkg/"
 
 # DEFINE THE RANGE OF DATES YOU WANT TO LOAD
-start_date = datetime.strptime("2020-01-02", "%Y-%m-%d")
+start_date = datetime.strptime("2023-03-27", "%Y-%m-%d")
 end_date = datetime.strptime("2024-08-18", "%Y-%m-%d")  # Example end date
 
 # DEFINE COLUMN NAMES
