@@ -22,7 +22,7 @@ table_exists = DeltaTable.isDeltaTable(spark, delta_table_path)
 column_names = [
     "DATE", "NUMARTS", "COUNTS", "THEMES", "LOCATIONS",
     "PERSONS", "ORGANIZATIONS", "TONE", "CAMEOEVENTIDS",
-    "SOURCES", "SOURCEURLS"
+    "SOURCES", "SOURCEURLS",  "extraction_date"
 ]
 
 # Definir el esquema para la tabla de Spark
@@ -49,29 +49,20 @@ s3_base_path = dbutils.widgets.get("aws_raw_path")
 s3_path = f"{s3_base_path}/{extraction_date_for_s3}.parquet"
 
 spark_df = spark.read.parquet(s3_path)
-
-# Cast columns to match the schema of the Delta table
-spark_df = spark_df.select(
-    spark_df["DATE"].cast(IntegerType()),
-    spark_df["NUMARTS"].cast(IntegerType()),
-    spark_df["COUNTS"].cast(StringType()),
-    spark_df["THEMES"].cast(StringType()),
-    spark_df["LOCATIONS"].cast(StringType()),
-    spark_df["PERSONS"].cast(StringType()),
-    spark_df["ORGANIZATIONS"].cast(StringType()),
-    spark_df["TONE"].cast(StringType()),
-    spark_df["CAMEOEVENTIDS"].cast(StringType()),
-    spark_df["SOURCES"].cast(StringType()),
-    spark_df["SOURCEURLS"].cast(StringType())
-)
-
-# Add the extraction_date and last_modified columns
 spark_df = spark_df.withColumn("extraction_date", lit(extraction_date))
 spark_df = spark_df.withColumn("last_modified", lit(extraction_date))
 
-# Write to Delta table
-spark_df.write.format("delta").mode("append").save(delta_table_path)
-print(f"Tabla creada y datos insertados desde el archivo {s3_path}.")
+if table_exists:
+    delta_table = DeltaTable.forPath(spark, delta_table_path)
+    delta_table.alias("tgt").merge(
+        source=spark_df.alias("src"),
+        condition="tgt.DATE = src.DATE AND tgt.NUMARTS = src.NUMARTS"
+    ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
+    print(f"Datos actualizados para el archivo {s3_path}.")
+else:
+    spark_df.write.format("delta").mode("append").save(delta_table_path)
+    print(f"Tabla creada y datos insertados desde el archivo {s3_path}.")
+    table_exists = True
 
 # Finalizar la sesión de Spark
 spark.stop()

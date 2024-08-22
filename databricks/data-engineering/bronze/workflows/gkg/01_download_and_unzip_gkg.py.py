@@ -13,7 +13,7 @@ def download_and_prepare_data():
     # Calcular la fecha del día anterior
     next_day_to_process = dbutils.jobs.taskValues.get("00_get_events_control_date", "next_date_to_process_gkg")
     date_str = next_day_to_process.replace("-", "")
-    url = f"http://data.gdeltproject.org/gkg/20240819.gkg.csv.zip"
+    url = f"http://data.gdeltproject.org/gkg/{date_str}.gkg.csv.zip"
     
     try:
         # Descargar el archivo ZIP
@@ -25,13 +25,25 @@ def download_and_prepare_data():
         csv_file_name = zip_file.namelist()[0]
         csv_file = zip_file.open(csv_file_name)
         
+        
         # Leer el archivo CSV en un DataFrame de pandas
         df = pd.read_csv(csv_file, sep='\t', header=None, names=[
             "DATE", "NUMARTS", "COUNTS", "THEMES", "LOCATIONS",
             "PERSONS", "ORGANIZATIONS", "TONE", "CAMEOEVENTIDS",
             "SOURCES", "SOURCEURLS"
-        ], dtype=str)
+        ], low_memory=False)
         
+        # CONVERT NUMERIC COLUMNS
+        numeric_columns = ['DATE', 'NUMARTS']
+        df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors='coerce')
+
+        # CONVERT STRING COLUMNS
+        string_columns = [
+            'COUNTS', 'THEMES', 'LOCATIONS', 'PERSONS', 'ORGANIZATIONS', 
+            'TONE', 'CAMEOEVENTIDS', 'SOURCES', 'SOURCEURLS'
+        ]
+        df[string_columns] = df[string_columns].astype(str)
+
         print(f"Datos para {date_str} descargados y preparados.")
         return df, date_str
 
