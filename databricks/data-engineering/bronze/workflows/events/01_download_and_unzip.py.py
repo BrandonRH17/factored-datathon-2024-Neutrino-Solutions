@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 def download_and_prepare_data():
     # Calcular la fecha del día anterior
-    next_day_to_process = dbutils.jobs.taskValues.get("00_get_events_control_date", "next_date_to_process")
+    next_day_to_process = dbutils.jobs.taskValues.get("00_get_events_control_date", "next_date_to_process_events")
     date_str = next_day_to_process.replace("-", "")
     url = f"http://data.gdeltproject.org/events/{date_str}.export.CSV.zip"
     

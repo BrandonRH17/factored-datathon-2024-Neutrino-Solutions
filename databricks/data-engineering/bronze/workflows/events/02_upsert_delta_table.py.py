@@ -99,7 +99,7 @@ schema = StructType([
 ])
 
 # Leer el archivo Parquet desde S3
-extraction_date = dbutils.jobs.taskValues.get("00_get_events_control_date", "next_date_to_process")
+extraction_date = dbutils.jobs.taskValues.get("00_get_events_control_date", "next_date_to_process_events")
 extraction_date_for_s3 = extraction_date.replace("-", "")
 
 s3_base_path = dbutils.widgets.get("aws_raw_path")
