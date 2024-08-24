@@ -109,12 +109,8 @@ GKG_NOT_EMOTIONAL_CHARGE
 # COMMAND ----------
 
 GKG_NEWS_AND_TONE_DAILY = (GKG_NEWS_AND_TONE
-.groupby("Date").agg(count("Date").alias("NegativeNews"), avg("ToneNegativeScore").alias("ToneNegativeScore"))
+.groupby("Date").agg(count("Date").alias("NegativeNews"), avg("ToneNegativeScore").alias("ToneNegativeScore"), avg("Polarity").alias("Polarity"),max("ToneNegativeScore").alias("MaxToneNeg"),min("ToneNegativeScore").alias("MinToneNeg"))
 )
-
-# COMMAND ----------
-
-display(GKG_NEWS_AND_TONE_DAILY)
 
 # COMMAND ----------
 
@@ -139,6 +135,7 @@ GKG_NEWS_AND_TONE_DAILY
 #.withColumn("30daysAverage", avg(col("NegativeNews")).over(Window.orderBy("Date").rowsBetween(-30,-1)))
 .drop("NegativeNews","ToneNegativeScore","Part")
 )
+
 
 
 # COMMAND ----------
@@ -225,43 +222,6 @@ GKG_NEWS_AND_TONE
 .withColumn("NewsAboutPiracy", when(col("THEMES").like("%PIRACY%"),1).otherwise(0))
 .withColumn("NewsAboutCongestion", when(col("THEMES").like("%CONGESTION%"),1).otherwise(0))
 .groupBy("Date").agg(sum("NewsAboutDisruption").alias("DisruptionNews"),sum("NewsAboutStrikes").alias("StrikeNews"),sum("NewsAboutProtest").alias("ProtestNews"),sum("NewsAboutMaritimeDisaster").alias('MDNews'),sum("NewsAboutTerrorism").alias("TerrorismNews"),sum("NewsAboutPiracy").alias("PiracyNews"),sum("NewsAboutCongestion").alias("CongestionNews"))
-.withColumn("Part",lit(1))
-.withColumn("OneDayLagD", lag(col("DisruptionNews"),1).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("TwoDayLagD", lag(col("DisruptionNews"),2).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("ThreeDayLagD", lag(col("DisruptionNews"),3).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FourDayLagD", lag(col("DisruptionNews"),4).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FiveDayLagD", lag(col("DisruptionNews"),5).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("OneDayLagS", lag(col("StrikeNews"),1).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("TwoDayLagS", lag(col("StrikeNews"),2).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("ThreeDayLagS", lag(col("StrikeNews"),3).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FourDayLagS", lag(col("StrikeNews"),4).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FiveDayLagS", lag(col("StrikeNews"),5).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("OneDayLagP", lag(col("ProtestNews"),1).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("TwoDayLagP", lag(col("ProtestNews"),2).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("ThreeDayLagP", lag(col("ProtestNews"),3).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FourDayLagP", lag(col("ProtestNews"),4).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FiveDayLagP", lag(col("ProtestNews"),5).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("OneDayLagMD", lag(col("MDNews"),1).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("TwoDayLagMD", lag(col("MDNews"),2).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("ThreeDayLagMD", lag(col("MDNews"),3).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FourDayLagMD", lag(col("MDNews"),4).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FiveDayLagMD", lag(col("MDNews"),5).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("OneDayLagT", lag(col("TerrorismNews"),1).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("TwoDayLagT", lag(col("TerrorismNews"),2).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("ThreeDayLagT", lag(col("TerrorismNews"),3).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FourDayLagT", lag(col("TerrorismNews"),4).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FiveDayLagT", lag(col("TerrorismNews"),5).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("OneDayLagP", lag(col("PiracyNews"),1).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("TwoDayLagP", lag(col("PiracyNews"),2).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("ThreeDayLagP", lag(col("PiracyNews"),3).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FourDayLagP", lag(col("PiracyNews"),4).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FiveDayLagP", lag(col("PiracyNews"),5).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("OneDayLagC", lag(col("CongestionNews"),1).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("TwoDayLagC", lag(col("CongestionNews"),2).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("ThreeDayLagC", lag(col("CongestionNews"),3).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FourDayLagC", lag(col("CongestionNews"),4).over(Window.partitionBy("Part").orderBy("Date")))
-.withColumn("FiveDayLagC", lag(col("CongestionNews"),5).over(Window.partitionBy("Part").orderBy("Date")))
-.drop("Part","DisruptionNews","StrikeNews","ProtestNews","MDNews","TerrorismNews","PiracyNews","CongestionNews")
 )
 
 
@@ -275,12 +235,8 @@ GKG_NEWS_AND_TONE
  ### TABLAS FINALES
 
 GKG_DAILY_FINAL = (GKG_NEWS_AND_TONE_DAILY
-.join(VAR_LAGS_DAILY, "Date", "left")
-#.join(VAR_LAGS_POLARITY_DAILY, "Date", "left")
-#.join(VAR_LAGS_HIGH_LOW_INTENSITY_DAILY, "Date", "left")
-#.join(VAR_LAGS_GROWTH_DAYLY, "Date", "left")
-#.join(VAR_THEMES_LAG_DAILY,"Date","left")
-#.fillna(0)
+.join(VAR_THEMES_LAG_DAILY,"Date","left")
+.fillna(0)
 )
 
 # COMMAND ----------
@@ -347,16 +303,16 @@ adfuller(GKG_DAILY_FINAL_PANDAS['Diff'], regression = "c", autolag= 'AIC')
 
 GKG_DAILY_FINAL_PANDAS_TRAIN = GKG_DAILY_FINAL_PANDAS.copy()
 GKG_DAILY_FINAL_PANDAS_TRAIN = GKG_DAILY_FINAL_PANDAS_TRAIN[GKG_DAILY_FINAL_PANDAS_TRAIN['Date'] < '2024-01-01']
+GKG_DAILY_FINAL_PANDAS_TRAIN_PROC = GKG_DAILY_FINAL_PANDAS_TRAIN.drop("Date", axis = 1)
 
 GKG_DAILY_FINAL_PANDAS_TEST = GKG_DAILY_FINAL_PANDAS.copy()
 GKG_DAILY_FINAL_PANDAS_TEST = GKG_DAILY_FINAL_PANDAS_TEST[GKG_DAILY_FINAL_PANDAS_TEST['Date'] >= '2024-01-01']
+GKG_DAILY_FINAL_PANDAS_TEST_PROC = GKG_DAILY_FINAL_PANDAS_TEST.drop("Date", axis = 1)
 
+# COMMAND ----------
 
-x_train = GKG_DAILY_FINAL_PANDAS_TRAIN[['Diff','NegativeNews','ToneNegativeScore','3daysAverage','7daysAverage']]
-x_test = GKG_DAILY_FINAL_PANDAS_TEST[['Diff','NegativeNews','ToneNegativeScore','3daysAverage','7daysAverage']]
-
-y_train = GKG_DAILY_FINAL_PANDAS_TRAIN['Diff']
-y_test = GKG_DAILY_FINAL_PANDAS_TEST['Diff']
+print("Training Data :", len(GKG_DAILY_FINAL_PANDAS_TRAIN_PROC))
+print("Test Data :", len(GKG_DAILY_FINAL_PANDAS_TEST_PROC))
 
 # COMMAND ----------
 
@@ -374,41 +330,43 @@ import keras
 
 # COMMAND ----------
 
-n_input=8
-n_features=1
+n_input=12
+n_features=5
 
 # COMMAND ----------
 
 scaler = MinMaxScaler()
-scaler = scaler.fit(np.array(y_train).reshape(-1, 1))
-scaled_data = scaler.transform(np.array(y_train).reshape(-1, 1))
-scaled_data_test = scaler.transform(np.array(y_test).reshape(-1, 1))
+scaler = scaler.fit(GKG_DAILY_FINAL_PANDAS_TRAIN_PROC)
+scaled_data = scaler.transform(GKG_DAILY_FINAL_PANDAS_TRAIN_PROC)
+scaled_data_test = scaler.transform(GKG_DAILY_FINAL_PANDAS_TEST_PROC)
 
 # COMMAND ----------
 
-scaled_data_test
+scaler_objective = MinMaxScaler()
+scaler_objective = scaler.fit(np.array(GKG_DAILY_FINAL_PANDAS_TRAIN_PROC['Diff']).reshape(-1,1))
 
 # COMMAND ----------
 
 train_generator= TimeseriesGenerator(scaled_data,
-                                     scaled_data,
+                                     scaled_data[:, 4],
                                       n_input,
                                       batch_size=32)
 
 # COMMAND ----------
 
 test_generator = TimeseriesGenerator(scaled_data_test,
-                                     scaled_data_test,
+                                     scaled_data_test[:, 4],
                                       n_input,
                                       batch_size=32)
 
 # COMMAND ----------
 
 model=Sequential()
-model.add(LSTM(150,activation='relu',input_shape=(n_input,n_features),return_sequences=True))
-model.add(LSTM(80,activation='relu',return_sequences=True))
+model.add(LSTM(200,activation='relu',input_shape=(n_input,n_features),return_sequences=True))
 model.add(keras.layers.Dropout(0.20))
-model.add(LSTM(40,activation='relu'))
+model.add(LSTM(100,activation='relu',return_sequences=True))
+model.add(keras.layers.Dropout(0.20))
+model.add(LSTM(50,activation='relu'))
 model.add(Dense(1))
 
 # COMMAND ----------
@@ -418,7 +376,21 @@ model.summary()
 
 # COMMAND ----------
 
-model.fit(train_generator,epochs=100, batch_size = 33)
+class MyThresholdCallback(tf.keras.callbacks.Callback):
+    def __init__(self, threshold):
+        super(MyThresholdCallback, self).__init__()
+        self.threshold = threshold
+
+    def on_epoch_end(self, epoch, logs=None): 
+        loss = logs["val_loss"]
+        if loss <= self.threshold:
+            self.model.stop_training = True
+
+my_callback = MyThresholdCallback(threshold=0.07)
+
+# COMMAND ----------
+
+model.fit(train_generator,validation_data = test_generator, epochs=500, batch_size = 32, callbacks = [my_callback])
 
 # COMMAND ----------
 
@@ -432,25 +404,48 @@ predictions_train = []
 real_train = []
 real_test = []
 
-for i in range(0,len(pred_test)):
-    predictions_test.append(pred_test[i][0])
+transformed_train = scaler.inverse_transform(pred_train)
+transformed_test = scaler.inverse_transform(pred_test)
+transformed_train_real = scaler.inverse_transform(scaled_data[:,4].reshape(-1, 1))
+transformed_test_real = scaler.inverse_transform(scaled_data_test[:,4].reshape(-1, 1))
 
-for i in range(0,len(pred_train)):
-    predictions_train.append(pred_train[i][0])
+for i in range(0,len(transformed_train)):
+    predictions_train.append(transformed_train[i][0])
 
-for i in range(0,len(scaled_data)):
-    real_train.append(scaled_data[i][0])
+for i in range(0,len(transformed_test)):
+    predictions_test.append(transformed_test[i][0])
 
-for i in range(0,len(scaled_data_test)):
-    real_test.append(scaled_data_test[i][0])
+for i in range(0,len(transformed_train_real)):
+    real_train.append(transformed_train_real[i][0])
+
+for i in range(0,len(transformed_test_real)):
+    real_test.append(transformed_test_real[i][0])
 
 # COMMAND ----------
 
-r2_score(y_train[8:],predictions_train)
+from sklearn.metrics import mean_absolute_error
+
+print(" Training MAE : " , mean_absolute_error(scaled_data[8:,4], pred_train))
+print(" Test MAE : " , mean_absolute_error(scaled_data_test[8:,4], pred_test))
+
+print(" Training MAE Real: " , mean_absolute_error(real_train[8:], predictions_train))
+print(" Test MAE Real: " , mean_absolute_error(real_test[8:], predictions_test))
 
 # COMMAND ----------
 
-r2_score(y_test[8:],predictions_test)
+plt.hist(np.array(predictions_train) - np.array(real_train[8:]))
+
+# COMMAND ----------
+
+plt.hist(np.array(predictions_test) - np.array(real_test[8:]))
+
+# COMMAND ----------
+
+plt.scatter(y_train[8:],predictions_train)
+
+# COMMAND ----------
+
+plt.scatter(y_test[8:],predictions_test)
 
 # COMMAND ----------
 

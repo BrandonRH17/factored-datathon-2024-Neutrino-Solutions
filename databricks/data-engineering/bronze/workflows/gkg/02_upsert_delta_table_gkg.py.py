@@ -3,7 +3,7 @@ import boto3
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 from delta.tables import DeltaTable
-from pyspark.sql.functions import lit
+from pyspark.sql.functions import expr, lit
 import io
 
 # Inicializar la sesión de Spark
@@ -52,11 +52,21 @@ spark_df = spark.read.parquet(s3_path)
 spark_df = spark_df.withColumn("extraction_date", lit(extraction_date))
 spark_df = spark_df.withColumn("last_modified", lit(extraction_date))
 
+
 if table_exists:
     delta_table = DeltaTable.forPath(spark, delta_table_path)
     delta_table.alias("tgt").merge(
         source=spark_df.alias("src"),
-        condition="tgt.DATE = src.DATE AND tgt.NUMARTS = src.NUMARTS"
+        condition="tgt.DATE = src.DATE AND "
+        "tgt.NUMARTS = src.NUMARTS AND "
+        "tgt.CAMEOEVENTIDS = src.CAMEOEVENTIDS AND "
+        "tgt.THEMES = src.THEMES AND "
+        "tgt.TONE = src.TONE AND "
+        "tgt.LOCATIONS = src.LOCATIONS AND "
+        "tgt.PERSONS = src.PERSONS AND "
+        "tgt.ORGANIZATIONS = src.ORGANIZATIONS AND "
+        "tgt.SOURCES = src.SOURCES AND "
+        "tgt.SOURCEURLS = src.SOURCEURLS"
     ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
     print(f"Datos actualizados para el archivo {s3_path}.")
 else:
