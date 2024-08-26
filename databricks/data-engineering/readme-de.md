@@ -1,8 +1,8 @@
 # Data Engineering
 ## Introduction
-**Why did the data engineer break up with the SQL query?
+*Why did the data engineer break up with the SQL query?
 
-Because it couldn't join the right table!**
+Because it couldn't join the right table!*
 
 Welcome to the data engineering part of the project. Here, you'll find three folders corresponding to the Medallion Architecture:
 
@@ -13,6 +13,7 @@ Each folder contains subfolders for testing and workflow. The Testing folder sho
 
 ## Data Architecture
 We chose a lakehouse approach using Databricks due to its native integration with tools like Delta Tables, Unity Catalog, and Databricks Workflows. These tools provided everything needed to build a fully functional lakehouse.
+![](/Workspace/Repos/info@poweredbyneutrino.com/factored-datathon-2024-Neutrino-Solutions/images/Data Architecture Factored.drawio.png)
 
 ## Data Extraction
 We primarily used Apache Spark to handle all of our transformations and extractions. For both the GDELT events and GKG tables ingestion process, we performed the following steps:
@@ -22,8 +23,13 @@ We primarily used Apache Spark to handle all of our transformations and extracti
 3. Retrieved the Parquet file from the S3 bucket, enforced the Delta Live Table schema, and upserted the records based on unique IDs or attributes from the table.
 4. Updated the table_control table with the corresponding date for the table that was inserted.
 
+![](/Workspace/Repos/info@poweredbyneutrino.com/factored-datathon-2024-Neutrino-Solutions/images/bronze_gdelt_workflow.png)
+![](/Workspace/Repos/info@poweredbyneutrino.com/factored-datathon-2024-Neutrino-Solutions/images/Databricks notifications.png)
+
 ## Data Transformation
 Occurring at the silver and gold layers, this workflow is automatically triggered after the successful execution of the insertion in the bronze layers. Delta Live Tables were also incorporated to allow for data versioning and data quality enforcement. Email notifications were sent in case of workflow success or failure. 
+
+![](/Workspace/Repos/info@poweredbyneutrino.com/factored-datathon-2024-Neutrino-Solutions/images/silver_gdelt_workflow.png)
 
 ## Data Governance
 Unity Catalog is our go-to solution for this approach. Although we didn't need to limit access to data, control groups can easily be set up with the Unity Catalog configuration we implemented.
