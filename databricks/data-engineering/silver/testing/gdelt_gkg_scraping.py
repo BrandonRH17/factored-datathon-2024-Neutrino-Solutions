@@ -1,6 +1,5 @@
 # Databricks notebook source
 !pip install bs4
-
 # Loading Libraries for the notebook
 import datetime
 import requests
@@ -12,12 +11,11 @@ from pyspark.sql.types import StringType
 from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import when, col, split, to_date
-
+ 
 
 # COMMAND ----------
 
-
-gdelt_gkg = spark.sql("SELECT * FROM BRONZE.GDELT_GKG")
+gdelt_gkg = spark.sql("SELECT * FROM BRONZE.GDELT_GKG where date  >= 20230101 and date <= 20231231")
 
 # COMMAND ----------
 
@@ -57,6 +55,7 @@ gdelt_gkg_filtered = (
 
 # COMMAND ----------
 
+## POR LOCATION CODE Y POR FECHA, SCRAPPEAR SOLAMENTE LAS 3 NOTICIAS CON EL TONO MAS NEGATIVO EN ESA FECHA PARA ESA LOCALIZACION
 def scrape_content(url):
     try:
         response = requests.get(url, timeout=10)
@@ -73,10 +72,18 @@ scrape_udf = udf(scrape_content, StringType())
 
 # COMMAND ----------
 
-gdelt_gkg_filtered_with_content = gdelt_gkg_filtered.withColumn('contenturl', scrape_udf(gdelt_gkg_filtered['SOURCEURLS']))
-
-display(gdelt_gkg_filtered_with_content.limit(20))
-
+#gdelt_gkg_filtered_with_content = gdelt_gkg_filtered.withColumn('contenturl', scrape_udf(gdelt_gkg_filtered['SOURCEURLS']))
+#display(gdelt_gkg_filtered_with_content.limit(20))
+# Registrar la función como UDF en Spark
+scrape_udf = udf(scrape_content, StringType())
+# Definir la ventana para la operación de clasificación
+windowSpec = Window.partitionBy('Date', 'LocationCode').orderBy(col('ToneNegativeScore').desc())
+# Añadir una columna con la posición del registro en función de ToneNegativeScore
+gdelt_gkg_ranked = gdelt_gkg_filtered.withColumn('rank', row_number().over(windowSpec))
+# Filtrar los top 3 por cada grupo (DATE y LocationCode)
+gdelt_gkg_filtered_with_content = gdelt_gkg_ranked.withColumn('contenturl', when(col('rank') <= 3, scrape_udf(col('SOURCEURLS'))).otherwise(None))
+# Mostrar los resultados
+display(gdelt_gkg_filtered_with_content.select('Date', 'LocationCode', 'ToneNegativeScore', 'contenturl'))
 
 # COMMAND ----------
 
@@ -87,10 +94,9 @@ delta_table_path = f"s3://databricks-workspace-stack-e63e7-bucket/unity-catalog/
 # COMMAND ----------
 
 
-from pyspark.sql.functions import year, col
 
 # Filtrar los registros donde el año de extraction_date sea 2024
-gdelt_gkg_filtered_with_content = gdelt_gkg_filtered_with_content.filter(year(col("extraction_date")) == 2024)
+#gdelt_gkg_filtered_with_content = gdelt_gkg_filtered_with_content.filter(year(col("extraction_date")) == 2023)
 if DeltaTable.isDeltaTable(spark, delta_table_path):
     # Si la tabla existe, inserta los datos
     print("La tabla existe, insertando los datos")
@@ -114,5 +120,9 @@ else:
     gdelt_gkg_filtered_with_content.write.format("delta").mode("overwrite").save(delta_table_path)
     print("Se ha escrito en formato delta.")
     spark.sql(f"CREATE TABLE {table_name} USING DELTA LOCATION '{delta_table_path}'")
+
+
+
+# COMMAND ----------
 
 

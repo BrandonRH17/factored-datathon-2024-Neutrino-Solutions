@@ -1,8 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Models Generation to Predict Status of Transpacific Route
+# MAGIC # Models Generation to Predict Status of CA02 Port
 # MAGIC
-# MAGIC In this notebook you can find the training process for the model for Trans Pacific Route status predictions. 
+# MAGIC In this notebook you can find the training process for the model for CO2 Port status predictions. 
 
 # COMMAND ----------
 
@@ -28,6 +28,9 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import LSTM
 import keras
+import statsmodels.api as sm
+import numpy as np
+import joblib
 
 # COMMAND ----------
 
@@ -56,7 +59,7 @@ GKG = spark.sql("SELECT * FROM BRONZE.GDELT_GKG")
 # MAGIC
 # MAGIC AverageTone: Average Tone of the News Related to Event, TonePositiveScore: Positve Tone Score of the News Related to the event, ToneNegativeScore: Negative Tone Score of the News Related to the event, Polarity: Negative and Positive Word directly index of the event
 # MAGIC
-# MAGIC 4. Filter for locations of interest, In our case as we are focusing on the transpacific route, we would focus on this locations: "CA02","CA02","CA10","USCA","CH23","CH30","CH02","JA40","JA19","JA01"
+# MAGIC 4. Filter for locations of interest, In our case as we are focusing on the CA02 port, we would focus on this location: "CA02"
 
 # COMMAND ----------
 
@@ -69,7 +72,7 @@ GKG_PRINCIPAL_CLEANING =(GKG
 .withColumn("TonePositiveScore", split(col("TONE"),",").getItem(1)) # GET TONE POSITIVE SCORE
 .withColumn("ToneNegativeScore", split(col("TONE"),",").getItem(2)) # GET TONE NEGATIVE SCORE
 .withColumn("Polarity", split(col("TONE"),",").getItem(3))  # GET TONE POLARITY
-.filter(col("LocationCode").isin("CA02","CA10","USCA","CH23",'CH30',"CH02","JA40","JA19","JA01")) # FILTER THE NEWS RELATED TO THE LOCATIONS OF THE PORT (CHECK DEFINITION IN THE CELL ABOVE FOR MORE DETAILS IN THE CODES)
+.filter(col("LocationCode").isin("CA02")) # FILTER THE NEWS RELATED TO THE LOCATIONS OF THE PORT (CHECK DEFINITION IN THE CELL ABOVE FOR MORE DETAILS IN THE CODES)
 )
 
 # COMMAND ----------
@@ -178,7 +181,10 @@ GKG_NEWS_AND_TONE
 GKG_DAILY_FINAL = (GKG_NEWS_AND_TONE_DAILY
 .join(VAR_THEMES_LAG_DAILY,"Date","left")
 .fillna(0)
+.persist()
 ) # JOINING OUR VARIABLES BY DATE
+
+GKG_DAILY_FINAL.count()
 
 # COMMAND ----------
 
@@ -186,10 +192,6 @@ GKG_DAILY_FINAL = (GKG_NEWS_AND_TONE_DAILY
 # MAGIC # LSTM
 # MAGIC
 # MAGIC After various iterations within a lot of techniques like: Random Forest, GBT and Kernel Ridge Regressions. We choose that the best approach to tackle our objetive is to use LSTMS for time series forecasting.
-
-# COMMAND ----------
-
-pip install tensorflow
 
 # COMMAND ----------
 
@@ -217,6 +219,20 @@ GKG_DAILY_FINAL_PANDAS = GKG_DAILY_FINAL_PANDAS.sort_values('Date') # SORT VALUE
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## AutoCorrelation
+
+# COMMAND ----------
+
+sm.graphics.tsa.plot_acf(GKG_DAILY_FINAL_PANDAS['NegativeNews'])
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC By analyzing this graph we are going to use a lag of 7, as it represent a growing autocorrelation as the lag period advance
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Test for Stationary Time Series.
 # MAGIC
 # MAGIC Before doing some training. We need to be sure that our objective is Stationary. Non-Stationary Series could be a really big problem for Time Series Forecasting because the mean and standar deviation of the series could change over time and affect the predictibility of the series.
@@ -233,7 +249,7 @@ adfuller(GKG_DAILY_FINAL_PANDAS['NegativeNews'], regression = "c", autolag= 'AIC
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The P value in our series is 0.22385571145747551. Is not lower than 0.05. this means that our series in NOT STATIONARY. So we have to make the serie Stationary to have Better Forecasting Results
+# MAGIC The P value in our series is  0.26427396773673184. Is not lower than 0.05. this means that our series in NOT STATIONARY. So we have to make the serie Stationary to have Better Forecasting Results
 
 # COMMAND ----------
 
@@ -257,6 +273,25 @@ plt.title("Differencing Time Series")
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Outliers
+# MAGIC
+# MAGIC To treat outliers we are going to keep values from de 0.02% percentile to the 99% percentile.
+
+# COMMAND ----------
+
+GKG_DAILY_FINAL_PANDAS['Diff'] = np.where(GKG_DAILY_FINAL_PANDAS['Diff'] <= GKG_DAILY_FINAL_PANDAS['Diff'].quantile(0.02),GKG_DAILY_FINAL_PANDAS['Diff'].quantile(0.02), np.where(GKG_DAILY_FINAL_PANDAS['Diff'] >= GKG_DAILY_FINAL_PANDAS['Diff'].quantile(0.99),GKG_DAILY_FINAL_PANDAS['Diff'].quantile(0.99),GKG_DAILY_FINAL_PANDAS['Diff']))
+
+# COMMAND ----------
+
+plt.plot(GKG_DAILY_FINAL_PANDAS['Date'], GKG_DAILY_FINAL_PANDAS['Diff'])
+plt.xlabel("Date")
+plt.ylabel("Differencing")
+plt.xticks(rotation=90)
+plt.title("Differencing Time Series")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC By looking at the Graph Above, we have a pretty good insight that our data is now Stationary. Nevertheless, we are going to run the AD FULLER test to be 100% sure
 
 # COMMAND ----------
@@ -266,7 +301,7 @@ adfuller(GKG_DAILY_FINAL_PANDAS['Diff'], regression = "c", autolag= 'AIC') # RUN
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Now, are P value is 1.665313345544263e-13, Very below to 0.05. So now we can start thinking abour Time Series Forecasting
+# MAGIC Now, are P value is   2.8245834394494916e-13, Very below to 0.05. So now we can start thinking abour Time Series Forecasting
 
 # COMMAND ----------
 
@@ -283,7 +318,7 @@ GKG_DAILY_FINAL_PANDAS_TRAIN_PROC = GKG_DAILY_FINAL_PANDAS_TRAIN.drop(["Date"], 
 
 GKG_DAILY_FINAL_PANDAS_TEST = GKG_DAILY_FINAL_PANDAS.copy() # COPY DATASET
 GKG_DAILY_FINAL_PANDAS_TEST = GKG_DAILY_FINAL_PANDAS_TEST[GKG_DAILY_FINAL_PANDAS_TEST['Date'] >= '2024-01-01'] # DATA FROM 2024
-GKG_DAILY_FINAL_PANDAS_TEST_PROC = GKG_DAILY_FINAL_PANDAS_TEST.drop(["Date"], axis = 1) # DROP DATE OBJECT FOR MODEL AS IS NOT A VARIABLE
+GKG_DAILY_FINAL_PANDAS_TEST_PROC = GKG_DAILY_FINAL_PANDAS_TEST.drop(["Date",], axis = 1) # DROP DATE OBJECT FOR MODEL AS IS NOT A VARIABLE
 
 
 y_train = GKG_DAILY_FINAL_PANDAS_TRAIN_PROC['Diff'] # GET DIFF VALUES OF TRAINING DATA
@@ -306,7 +341,7 @@ print("Test Data :", len(GKG_DAILY_FINAL_PANDAS_TEST_PROC))
 
 # COMMAND ----------
 
-n_input=8
+n_input=7
 n_features=13
 
 # COMMAND ----------
@@ -328,7 +363,7 @@ scaled_data_test = scaler.transform(GKG_DAILY_FINAL_PANDAS_TEST_PROC) # TRANSFOR
 # COMMAND ----------
 
 scaler_objective = MinMaxScaler() # START SCALER
-scaler_objective = scaler.fit(np.array(GKG_DAILY_FINAL_PANDAS_TRAIN_PROC['Diff']).reshape(-1,1)) # FIT TO TRAINING DIFFERENCING
+scaler_objective = scaler_objective.fit(np.array(GKG_DAILY_FINAL_PANDAS_TRAIN_PROC['Diff']).reshape(-1,1)) # FIT TO TRAINING DIFFERENCING
 
 # COMMAND ----------
 
@@ -360,17 +395,17 @@ test_generator = TimeseriesGenerator(scaled_data_test, # DATAFRAME
 # MAGIC
 # MAGIC The model architecture is output of lots of iteratons made to find the best fit. The next pieces of code create this architecture, and compile the model. 
 # MAGIC
-# MAGIC 1. The architecture is build upon 3 LSTM layers, with 200,100,50 units and all with a ReLu activation function.
+# MAGIC 1. The architecture is build upon 3 LSTM layers, with 128,64,32 units and all with a ReLu activation function.
 # MAGIC 2. The input of the firs layer is (n_input,n_features) or (8,13)
 # MAGIC 3. The optimizer we choose is ADAM with a learning rate of 0.0001 and the loss we consider is the best fit to judge the performance of the model is Mean Absolute Error
-# MAGIC 4. In our process of finding the best architecture. We don't have the neccessity to add regularization methods as dropout. In the iterations DropOut methods where included.
+# MAGIC
 
 # COMMAND ----------
 
 model=Sequential() # CREATE MODEL INSTANCE
-model.add(LSTM(200,activation='relu',input_shape=(n_input,n_features),return_sequences=True)) # FIRST LAYER CONSTRUCTOR
-model.add(LSTM(100,activation='relu',return_sequences=True)) # SECOND LAYER CONSTRUCTOR
-model.add(LSTM(50,activation='relu')) # THIRD LAYER CONSTRUCTOR
+model.add(LSTM(128,activation='relu',input_shape=(n_input,n_features),return_sequences=True)) # FIRST LAYER CONSTRUCTOR
+model.add(LSTM(64,activation='relu',return_sequences=True)) # SECOND LAYER CONSTRUCTOR
+model.add(LSTM(32,activation='relu')) # THIRD LAYER CONSTRUCTOR
 model.add(Dense(1)) # OUTPUT LAYER CONSTRUCTOR
 
 # COMMAND ----------
@@ -398,7 +433,7 @@ class MyThresholdCallback(tf.keras.callbacks.Callback):
         if loss <= self.threshold:
             self.model.stop_training = True
 
-my_callback = MyThresholdCallback(threshold=0.072) # CREATING CALL BACK
+my_callback = MyThresholdCallback(threshold=0.158) # CREATING CALL BACK
 
 # COMMAND ----------
 
@@ -411,21 +446,33 @@ model.fit(train_generator,validation_data = test_generator, epochs=1000, batch_s
 
 # COMMAND ----------
 
-pred_train = (model.predict(train_generator))
-pred_test =  (model.predict(test_generator))
+# MAGIC %md
+# MAGIC ## Model Predictions for Test and for Training
+# MAGIC
+# MAGIC In the next part of the code we interact with the model Predict function that let us use what the model learn to predict values. The last part of the code is used to extract this values and put them in a list.
 
 # COMMAND ----------
 
+pred_train = (model.predict(train_generator)) #MODEL PREDICTIONS
+pred_test =  (model.predict(test_generator)) #TEST PREDICTIONS
+
+# COMMAND ----------
+
+# EMPTY LISTS FOR STORING DATA
 predictions_test = []
 predictions_train = []
 real_train = []
 real_test = []
 
-transformed_train = scaler.inverse_transform(pred_train)
-transformed_test = scaler.inverse_transform(pred_test)
-transformed_train_real = scaler.inverse_transform(scaled_data[:,12].reshape(-1, 1))
-transformed_test_real = scaler.inverse_transform(scaled_data_test[:,12].reshape(-1, 1))
 
+# IN THIS PART OF THE CODE WE USE THE SCALES WE BUILD TO INVERSE TRANSFORM THE VALUES TO THE ORIGINAL ONES.
+
+transformed_train = scaler_objective.inverse_transform(pred_train)
+transformed_test = scaler_objective.inverse_transform(pred_test)
+transformed_train_real = scaler_objective.inverse_transform(scaled_data[:,12].reshape(-1, 1))
+transformed_test_real = scaler_objective.inverse_transform(scaled_data_test[:,12].reshape(-1, 1))
+
+# FOR LOOP TO EXTRACT THE VALUES TO INSERT THEM INTO THE EMPTY LISTS
 for i in range(0,len(transformed_train)):
     predictions_train.append(transformed_train[i][0])
 
@@ -440,35 +487,54 @@ for i in range(0,len(transformed_test_real)):
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## First Metric Mean Absolute Error
+# MAGIC
+# MAGIC The first Metrics we are going to use is the MAE (Mean Absolute Error). This metrics is te average of the absolute value of the errors (-2 = 2, 2=2) for all the observations. We have to be aware tha averages are sensitive to outliers. a Higher value dosen't mean that the model is totally wrong. 
+
+# COMMAND ----------
+
 from sklearn.metrics import mean_absolute_error
 
-print(" Training MAE : " , mean_absolute_error(scaled_data[8:,12], pred_train))
-print(" Test MAE : " , mean_absolute_error(scaled_data_test[8:,12], pred_test))
+print(" Training MAE : " , mean_absolute_error(scaled_data[7:,12], pred_train))
+print(" Test MAE : " , mean_absolute_error(scaled_data_test[7:,12], pred_test))
 
-print(" Training MAE Real: " , mean_absolute_error(real_train[8:], predictions_train))
-print(" Test MAE Real: " , mean_absolute_error(real_test[8:], predictions_test))
-
-# COMMAND ----------
-
-plt.hist(np.array(predictions_train) - np.array(real_train[8:]))
+print(" Training MAE Real: " , mean_absolute_error(real_train[7:], predictions_train))
+print(" Test MAE Real: " , mean_absolute_error(real_test[7:], predictions_test))
 
 # COMMAND ----------
 
-plt.hist(np.array(predictions_test) - np.array(real_test[8:]))
+# MAGIC %md
+# MAGIC ## Errors Histogram
+# MAGIC
+# MAGIC As I said before MAE is a very good metric to give a quick sight of how the model is performing. Now the erros histogram gives us a more deeply understanding on how are errors are distribuited. For goodness in the model we look for the high concentrations be between the 0's
 
 # COMMAND ----------
 
-plt.scatter(y_train[8:],predictions_train)
+plt.hist(np.array(predictions_train) - np.array(real_train[7:]))
+plt.xlabel("Errors")
+plt.ylabel("Count")
+plt.title("Erros in the Training Set Distribuition")
 
 # COMMAND ----------
 
-plt.scatter(y_test[8:],predictions_test)
+plt.hist(np.array(predictions_test) - np.array(real_test[7:]))
+plt.xlabel("Errors")
+plt.ylabel("Count")
+plt.title("Erros in the Test Set Distribuition")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Predictions vs Real Values of Time
+# MAGIC
+# MAGIC Now we are going to se in the train and test set how well our predicted line fits within each date
 
 # COMMAND ----------
 
 TRAIN_RESULTS = pd.DataFrame()
 
-TRAIN_RESULTS['test'] = y_train[8:]
+TRAIN_RESULTS['test'] = y_train[7:] 
 TRAIN_RESULTS['preds'] = predictions_train
 TRAIN_RESULTS['Date'] = GKG_DAILY_FINAL_PANDAS_TRAIN['Date'][3:]
 #PRUEBA['test'] = y_test
@@ -477,13 +543,17 @@ TRAIN_RESULTS = TRAIN_RESULTS.sort_values('Date')
 plt.plot(TRAIN_RESULTS['Date'], TRAIN_RESULTS['test'], label = "Real Value")
 plt.plot(TRAIN_RESULTS['Date'], TRAIN_RESULTS['preds'], label = "Predictions")
 plt.legend()
+plt.xlabel("Date")
+plt.ylabel("Difference")
+plt.xticks(rotation=90)
+plt.title("Real vs Predicted Values over Time Train")
 plt.show()
 
 # COMMAND ----------
 
 TEST_RESULTS = pd.DataFrame()
 
-TEST_RESULTS['test'] = y_test[8:]
+TEST_RESULTS['test'] = y_test[7:]
 TEST_RESULTS['preds'] = predictions_test
 TEST_RESULTS['Date'] = GKG_DAILY_FINAL_PANDAS_TEST['Date'][3:]
 #PRUEBA['test'] = y_test
@@ -491,77 +561,96 @@ TEST_RESULTS = TEST_RESULTS.sort_values('Date')
 
 plt.plot(TEST_RESULTS['Date'], TEST_RESULTS['test'], label = "Real Value")
 plt.plot(TEST_RESULTS['Date'], TEST_RESULTS['preds'], label = "Predictions")
+plt.xlabel("Date")
+plt.ylabel("Difference")
+plt.xticks(rotation=90)
+plt.title("Real vs Predicted Values over Time Testing")
 plt.legend()
 plt.show()
 
 
 # COMMAND ----------
 
-stats.spearmanr(predictions_test, y_test[8:])
+# MAGIC %md
+# MAGIC ## Spearman Correlation
+# MAGIC
+# MAGIC Last but not least, the Spearman Correlation is a great form on testing the goodnes of a model in sort a different way. The Spearmn correlation measures correlation based on Ranks. This is going to helps us understand how well are we capturing the "Movements" in our time series
 
 # COMMAND ----------
 
-stats.spearmanr(predictions_train, y_train[8:])
+stats.spearmanr(predictions_test, y_test[7:])
 
 # COMMAND ----------
 
-model.save("TPR_model.keras")
+stats.spearmanr(predictions_train, y_train[7:])
 
 # COMMAND ----------
 
-pip install joblib
+# MAGIC %md
+# MAGIC ## Saving Models and Scalers
 
 # COMMAND ----------
 
-scaler_filename = "scalerTPR.save"
+model.save("CA02_model.keras")
+
+# COMMAND ----------
+
+scaler_filename = "scalerCA02.save"
 joblib.dump(scaler, scaler_filename) 
 
 # COMMAND ----------
 
-scaler_filename = "scalerTPR_Obj.save"
+scaler_filename = "scalerCA02_Obj.save"
 joblib.dump(scaler_objective, scaler_filename) 
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Real Performance
+# MAGIC ## Perfomance on Prediction Next Day Negative News
+# MAGIC
+# MAGIC As we can remember, our model predicts "difference" in news. Not the actual news. So, we are going to use our test set to try to predict the Next Day Negative News by using our model that predict the difference. Next pieces of code is all the preprocessing steps need to achive this
 
 # COMMAND ----------
 
-RP_ANALYSIS = GKG_DAILY_FINAL_PANDAS_TEST.copy()
-RP_ANALYSIS = RP_ANALYSIS.sort_values("Date")
-RP_ANALYSIS = RP_ANALYSIS.drop("Date", axis = 1)
+RP_ANALYSIS = GKG_DAILY_FINAL_PANDAS_TEST.copy() #COPY TEST DATASET
+RP_ANALYSIS = RP_ANALYSIS.sort_values("Date") # SORT VALUES BY DATE
+RP_ANALYSIS = RP_ANALYSIS.drop("Date", axis = 1) # DROP DATE AS IS NOT PART OF PREDICTORS
 
 # COMMAND ----------
 
-scaled_data_real_test = scaler.transform(RP_ANALYSIS)
+scaled_data_real_test = scaler.transform(RP_ANALYSIS) # TRANSFORMS VALUE WITH MIN MAX SCALER
 
 # COMMAND ----------
 
 preds_generator = TimeseriesGenerator(scaled_data_real_test,
                                      scaled_data_real_test[:, 12],
                                       8,
-                                      batch_size=32)
+                                      batch_size=32) # GENERATE DATASET FOR TIME SERIES FORECASTING AND PREDICTIONS
 
 # COMMAND ----------
 
-prediction_real_test =scaler_objective.inverse_transform(model.predict(train_generator))
+prediction_real_test =scaler_objective.inverse_transform(model.predict(test_generator)) # PREDICT VALUES AND RETURN THEM TO REAL VALUES USING THE SCALER OBJECTIVE SCALER
 
 # COMMAND ----------
 
-NEWS_PREDICTION = GKG_DAILY_FINAL_PANDAS_TEST[8:] 
-NEWS_PREDICTION['DiffPred'] = prediction_real_test
-NEWS_PREDICTION['NextDayNewsPred'] = NEWS_PREDICTION['NegativeNews'] + NEWS_PREDICTION['DiffPred']
-NEWS_PREDICTION['NextDayNewsPredAdjusted'] = NEWS_PREDICTION['NextDayNewsPred'].shift(1)
-NEWS_PREDICTION = NEWS_PREDICTION.dropna()
+NEWS_PREDICTION = GKG_DAILY_FINAL_PANDAS_TEST[7:] # GET VALUES THAT WOULD HAVE A PREDICTION (8 DAY LAG)
+NEWS_PREDICTION['DiffPred'] = prediction_real_test # ADD PREDICTIONS OF DIFFERENCE TO DATAFRAME
+NEWS_PREDICTION['NextDayNewsPred'] = NEWS_PREDICTION['NegativeNews'] + NEWS_PREDICTION['DiffPred'] # CALCULATE NEXT DAT NEWS
+NEWS_PREDICTION['NextDayNewsPredAdjusted'] = NEWS_PREDICTION['NextDayNewsPred'].shift(1) # LAG NEXDAY NEWS PRED TO ANALYZE
+NEWS_PREDICTION = NEWS_PREDICTION.dropna() # DROP NULL VALUES (8 DAYS LAG)
 
 # COMMAND ----------
 
 plt.plot(NEWS_PREDICTION['Date'], NEWS_PREDICTION['NegativeNews'], label = "Real Value")
 plt.plot(NEWS_PREDICTION['Date'], NEWS_PREDICTION['NextDayNewsPredAdjusted'], label = "Predictions")
+plt.xlabel("Date")
+plt.ylabel("Difference")
+plt.xticks(rotation=90)
+plt.title("Real vd Predicted Negative News Values by Date")
 plt.legend()
 plt.show()
 
 # COMMAND ----------
 
-
+# MAGIC %md
+# MAGIC It's pretty good! Now this is the end of the model generating model for the CA02
